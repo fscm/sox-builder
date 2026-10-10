@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Frederico Martins
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# DEPENDENCIES.txt - dependency map for the SoX static build
+# =============================================================================
+# This file is READ BY THE MAKEFILE: it is the single source of truth for build
+# ordering. Edit it whenever a dependency is added, removed or re-wired.
+#
+# Format (one entry per line):
+#       <package>: <space-separated list of direct dependencies>
+#   - A package with no dependencies is written as "<package>:".
+#   - '#' starts a comment; blank lines are ignored.
+#   - Names must match the package names used by the Makefile
+#     (TOOLS and PACKAGES lists, plus "sox").
+#
+# Two groups exist:
+#   TOOLCHAIN  - native build tools installed into $(TOOLCHAIN_DIR); built once.
+#   LIBRARIES  - static libraries, built once PER ARCHITECTURE into
+#                $(DEPS_DIR)/<arch>. Every library build implicitly requires the
+#                complete toolchain (pkgconf for discovery, automake for fresh
+#                config.sub/config.guess), so that is not repeated below.
+#
+# Rule of thumb when updating: if you bump package X, everything that lists X
+# on its right-hand side must be rebuilt. The Makefile does that automatically
+# on the next "make" (stamps are compared by timestamp).
+# =============================================================================
+
+# ----------------------------- TOOLCHAIN -------------------------------------
+m4:
+autoconf: m4
+automake: autoconf
+libtool: m4
+pkgconf:
+# 'file' = host tool of the same version as libmagic, always built into the
+# toolchain: it compiles magic.mgc when libmagic is cross-built.
+file:
+
+# ----------------------------- LIBRARIES -------------------------------------
+zlib:
+libogg:
+libvorbis: libogg
+flac: libogg
+opus:
+opusfile: libogg opus
+mpg123:
+# LAME 4.x decodes through libmpg123 instead of its old built-in mpglib.
+lame: mpg123
+libmad:
+libid3tag: zlib
+libsndfile: libogg libvorbis flac opus
+# twolame's configure script probes libsndfile (used only by its command-line
+# frontend, which is NOT built). Kept as a dependency so configure succeeds.
+twolame: libsndfile
+wavpack:
+opencore-amr:
+vo-amrwbenc:
+libpng: zlib
+# libmagic's default database path is rewritten to <DIST_PREFIX>/share/sox/magic.mgc
+# (LIBMAGIC_PRE)
+libmagic: zlib file
+
+# ------------------------------- TARGET --------------------------------------
+sox: zlib libogg libvorbis flac opus opusfile mpg123 lame libmad libid3tag libsndfile twolame wavpack opencore-amr vo-amrwbenc libpng libmagic
+
+# =============================================================================
+# Reverse view (informational - NOT parsed, keep in sync by hand if you like)
+#   libogg     <- libvorbis, flac, opusfile, libsndfile
+#   opus       <- opusfile, libsndfile
+#   mpg123     <- lame
+#   flac       <- libsndfile
+#   libvorbis  <- libsndfile
+#   libsndfile <- twolame
+#   zlib       <- libid3tag, libpng, libmagic
+#   file       <- libmagic
+#   (all libraries) <- sox
+# =============================================================================
