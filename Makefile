@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Frederico Martins
 # SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
-# SoX (Sound eXchange) - static, universal build system for macOS
+# SoX (Sound eXchange): static, universal build system for macOS
 # =============================================================================
-# See README.md for full documentation and DEPENDENCIES.txt for the dependency
-# map (which this Makefile reads). Compatible with the GNU Make 3.81 that ships
-# with macOS.
+# See README.md and DEPENDENCIES.txt for the dependency map. Works with
+# the GNU Make 3.81 that ships with macOS.
 #
 #   make                 build everything -> $(OUTPUT_DIR)/<arch|universal>$(DIST_PREFIX)/bin/sox
 #   make help            list all targets
@@ -13,7 +12,7 @@
 #   make flac-arm64      build one dependency for one architecture
 #   make ARCHS=arm64     build a single architecture only
 #
-# Every setting below can be overridden on the command line, from the
+# You can override every setting below on the command line, from the
 # environment, or in an optional config.mk placed next to this Makefile.
 # =============================================================================
 
@@ -35,7 +34,7 @@ MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
 # -----------------------------------------------------------------------------
 # Architectures to build: 'x86_64 arm64' (universal) or just one of them.
 ARCHS                    ?= x86_64 arm64
-# Minimum macOS version of the produced binaries (arm64 requires >= 11.0).
+# Minimum macOS version for the binaries you build (arm64 needs >= 11.0).
 MACOSX_DEPLOYMENT_TARGET ?= 11.0
 TARGET_CC                ?= clang
 TARGET_CXX               ?= clang++
@@ -43,20 +42,20 @@ MACOS_SDK                ?= $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/nu
 JOBS                     ?= $(shell sysctl -n hw.ncpu 2>/dev/null || echo 4)
 STRIP_BINARIES           ?= yes
 # macOS installer package (.pkg) settings.
-# Default: <current user name, lower case>.sox (e.g. user 'Alice' -> alice.sox)
+# Default: <current user name, lower case>.sox (e.g. user 'Alice' -> alice.sox).
 PKG_IDENTIFIER           ?= $(shell id -un | tr '[:upper:]' '[:lower:]').sox
 PKG_VERSION              ?= $(SOX_VERSION)
 OPT_FLAGS                ?= -O2
-# Old code bases (SoX 14.4.2, libmad, etc.) trip over errors that modern clang
-# promotes from warnings. Downgrade them again.
+# Old code bases (SoX 14.4.2, libmad, etc.) fail on errors that modern clang
+# promotes from warnings. The build downgrades them again.
 LEGACY_WARN              ?= -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion -Wno-error=incompatible-pointer-types -Wno-error=incompatible-function-pointer-types
-# Formats that 'make verify' requires in the final sox binary.
+# Formats (as listed by 'magick -list format') that 'make verify' requires.
 REQUIRED_FORMATS         ?= flac mp3 ogg opus wv amr-nb amr-wb
 # Run autoreconf on SoX (needed: the 14.4.2 release predates Apple Silicon).
 SOX_AUTORECONF           ?= yes
 
 # -----------------------------------------------------------------------------
-# 2. Folders (all relocatable. Avoid spaces in paths)
+# 2. Folders (all relocatable; avoid spaces in paths)
 # -----------------------------------------------------------------------------
 BASE_DIR          ?= $(patsubst %/,%,$(MAKEFILE_DIR))
 DOWNLOAD_DIR      ?= $(BASE_DIR)/downloads     # source tarballs
@@ -67,13 +66,13 @@ OUTPUT_DIR        ?= $(BASE_DIR)/dist          # final results (see 'make dist')
 DEPENDENCIES_FILE ?= $(BASE_DIR)/DEPENDENCIES.txt
 PACKAGE_DIR       ?= $(BASE_DIR)/packages      # .pkg installers (see 'make package')
 
-# Install prefix recreated inside every $(OUTPUT_DIR)/<arch> and
-# $(OUTPUT_DIR)/universal folder, e.g. dist/arm64/usr/local/bin/sox. Normalised
-# to start with '/' and not end with one.
+# The build recreates the install prefix inside every $(OUTPUT_DIR)/<arch> and
+# $(OUTPUT_DIR)/universal folder, e.g. dist/arm64/usr/local/bin/magick. It
+# normalises it to start with '/' and not end with one.
 DIST_PREFIX       ?= /usr/local
-# Folder (relative to the prefix) receiving the collected licence files. The SoX
-# licences go directly inside it, every dependency's into vendors/<software_name>/.
-# Normalised to neither start or end with '/'.
+# Folder (relative to the prefix) for the collected licence files. SoX licences
+# go directly inside it, every other package goes into vendors/<software_name>/.
+# The build normalises it to neither start nor end with '/'.
 DIST_LICENSES_DIR ?= share/sox/licenses
 # `magic.mgc` path inside the $(DIST_PREFIX) location. Normalised to neither
 # start or end with '/'.
@@ -100,7 +99,7 @@ DIST_MAIN  = $(OUTPUT_DIR)/$(if $(word 2,$(ARCHS)),universal,$(firstword $(ARCHS
 # 'file' of exactly the same version to compile magic.mgc so 'file' is always
 # built.
 TOOLS    := m4 autoconf automake libtool pkgconf file
-# Static libraries -> $(DEPS_DIR)/<arch>   (order/relations: DEPENDENCIES.txt)
+# Static libraries -> $(DEPS_DIR)/<arch> (order/relations: DEPENDENCIES.txt).
 PACKAGES := zlib libogg libvorbis flac opus opusfile mpg123 lame libmad libid3tag \
             libsndfile twolame wavpack opencore-amr vo-amrwbenc libpng libmagic
 ALL_PKGS := $(PACKAGES) sox
@@ -127,7 +126,7 @@ LIBTOOL_SHA256   ?= 2ef1067c16c97db930fd740cc9bc3d3ba9a583804ae5ac42cc3e8719e49e
 PKGCONF_VERSION  ?= 3.0.7
 PKGCONF_URL      ?= https://distfiles.ariadne.space/pkgconf/pkgconf-$(PKGCONF_VERSION).tar.xz
 PKGCONF_SHA256   ?= c926ff491cbd9a331a589160811bd97ab1749b4d5198a519338f2cdfabe6940a
-# 'file' tool = same source/version as libmagic (see below)
+# 'file' tool = same source/version as libmagic (see below).
 FILE_VERSION      = $(LIBMAGIC_VERSION)
 FILE_URL          = $(LIBMAGIC_URL)
 FILE_SHA256       = $(LIBMAGIC_SHA256)
@@ -203,12 +202,12 @@ SOX_SHA256  ?=
 PKGCONF_CFG      ?= --disable-shared --enable-static
 FILE_CFG         ?= --disable-shared --enable-static --disable-zlib --disable-bzlib --disable-xzlib --disable-zstdlib --disable-lzlib --disable-libseccomp
 
-# clang rejects several GCC-only optimisation flags hard-coded in these
-# 2004-era configure scripts.
+# clang rejects several GCC-only optimisation flags hard-coded in these 2004-era
+# configure scripts.
 LEGACY_GCC_FIX = LC_ALL=C sed -e 's/-fno-strength-reduce//g' -e 's/-fstrength-reduce//g' -e 's/-fforce-mem//g' -e 's/-fthread-jumps//g' -e 's/-fcse-follow-jumps//g' -e 's/-fcse-skip-blocks//g' -e 's/-fregmove//g' -e 's/-fexpensive-optimizations//g' -e 's/-fschedule-insns2//g' -e 's/-fschedule-insns//g' configure > configure.tmp && mv configure.tmp configure && chmod +x configure
 
-# <PKG>_LICENSE_FILES: extra root-level files that hold a licence (picked up by
-# 'make licenses')
+# <PKG>_LICENSE_FILES: extra files (paths relative to the source root) that hold
+# a licence ('make licenses' picks them up).
 ZLIB_LICENSE_FILES ?= README
 
 ZLIB_CONFIGURE   ?= ./configure --prefix="$$pfx" --static
@@ -288,7 +287,7 @@ stamp   = $(DEPS_DIR)/$(2)/.stamps/$(1)-$(call pv,$(1),VERSION).stamp
 tstamp  = $(TOOLCHAIN_DIR)/.stamps/$(1)-$(call pv,$(1),VERSION).stamp
 TOOLCHAIN_STAMPS := $(foreach t,$(TOOLS),$(call tstamp,$(t)))
 
-# Environment for native toolchain builds
+# Environment for native toolchain builds.
 tool_exports = export PATH="$(TOOLCHAIN_DIR)/bin:$$PATH"; \
 	export MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)"; \
 	export CC="$(TARGET_CC) -arch $(NATIVE_ARCH) $(SYSROOT_FLAGS) -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)"; \
@@ -296,7 +295,7 @@ tool_exports = export PATH="$(TOOLCHAIN_DIR)/bin:$$PATH"; \
 	export MAKEINFO=true HELP2MAN=true; \
 	unset PKG_CONFIG_PATH PKG_CONFIG_LIBDIR LIBS CPPFLAGS LDFLAGS;
 
-# Environment for per-architecture library builds ($(1) = arch; needs $$pfx set)
+# Environment for per-architecture library builds ($(1) = arch; needs $$pfx set).
 arch_exports = export PATH="$(TOOLCHAIN_DIR)/bin:$$PATH"; \
 	export MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)"; \
 	export CC="$(TARGET_CC) -arch $(1) $(SYSROOT_FLAGS) -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)"; \
@@ -312,7 +311,7 @@ arch_exports = export PATH="$(TOOLCHAIN_DIR)/bin:$$PATH"; \
 	export ac_cv_func_malloc_0_nonnull=yes ac_cv_func_realloc_0_nonnull=yes; \
 	export MAKEINFO=true;
 
-# Refresh config.sub/config.guess so old packages recognise arm64 macOS
+# Refresh config.sub/config.guess so old packages recognise arm64 macOS.
 refresh_config = for f in config.sub config.guess; do for t in $$(find . -name $$f -type f); do cp "$$(ls $(TOOLCHAIN_DIR)/share/automake-*/$$f | tail -n 1)" "$$t"; done; done
 
 autoconf_cmd  = ./configure --prefix="$$pfx" --host=$(triple_$(2)) --build=$(triple_$(NATIVE_ARCH)) --enable-static --disable-shared --disable-dependency-tracking $(call pv,$(1),CFG)
@@ -456,7 +455,7 @@ dist: $(foreach a,$(ARCHS),$(call stamp,sox,$(a)))
 	true
 
 # ---- licences ---------------------------------------------------------------
-# Collected from the ORIGINAL source archives (so 'make clean' does not matter):
+# Collected from the original source archives (so 'make clean' does not matter):
 #   SoX             -> <tree><prefix>/<DIST_LICENSES_DIR>/
 #   each dependency -> <tree><prefix>/<DIST_LICENSES_DIR>/vendors/<software_name>/
 #  Root-level files named COPYING*, LICEN[CS]E*, COPYRIGHT*, NOTICE*, LGPL*,
