@@ -1,17 +1,17 @@
 # SoX static universal build for macOS
 
-A self-contained `Makefile` that builds **SoX 14.4.2** from source on macOS
-together with every library it can use, all linked **statically**, and produces
-a **universal binary (x86_64 and arm64)** or a single-architecture binary.
+A self-contained `Makefile` that builds SoX from source on macOS with every
+library it can use. It links everything statically and produces a universal
+(x86_64 and arm64) or single-architecture binary.
 
 It downloads all sources, builds its own small toolchain (GNU m4, autoconf,
-automake, libtool, pkgconf, file), builds each dependency separately for each
-architecture, and merges the results with `lipo`. Every dependency can be
-rebuilt independently, so updates are cheap.
+automake, libtool, pkgconf, file), builds each dependency per architecture, and
+merges the results with `lipo`. You can rebuild every dependency on its own, so
+updates stay cheap.
 
-> The binary is as static as macOS allows: all third-party libraries are linked
-> in, and only Apple system libraries and frameworks (`libSystem`, `libc++`,
-> CoreAudio, etc.) stay dynamic. `make verify` checks this.
+> The binary is as static as macOS allows: the build links in all third-party
+> libraries and leaves only Apple system libraries and frameworks (`libSystem`,
+> `libc++`, CoreAudio, etc.) dynamic. `make verify` checks this.
 
 ---
 
@@ -67,9 +67,9 @@ Each tree contains:
 
 You can copy a tree straight onto a target (for example
 `sudo cp -R dist/universal/usr/local/ /usr/local/`) or package it.
-Per-architecture trees contain thin binaries, the `universal` tree holds the
-`lipo`-merged ones. With a single architecture (e.g. `ARCHS=arm64`) only that
-arch's tree is created.
+Per-architecture trees hold thin binaries, the `universal` tree holds the
+`lipo`-merged ones. With a single architecture (e.g. `ARCHS=arm64`) the build
+creates only that arch's tree.
 
 Useful variants:
 
@@ -81,10 +81,10 @@ make DIST_PREFIX=/opt/sox                 # dist/<arch>/opt/sox/bin/sox
 make JOBS=1                               # serial inner builds, for debugging
 ```
 
-Do **not** pass `-j` to the top-level `make`. Each package build uses `JOBS` for
-parallelism (default: number of CPU cores). Note that `make -n` is not a
-reliable dry run, because package builds are recursive make invocations and are
-executed.
+Do not pass `-j` to the top-level `make`. Each package build uses `JOBS` for
+parallelism (default: number of CPU cores). `make -n` does not work as a
+reliable dry run, because the build runs package builds as recursive make
+invocations.
 
 ---
 
@@ -101,26 +101,25 @@ executed.
     └── .stamps/           one stamp file per installed tool+version
 ```
 
-1. **Download**: each archive is fetched with `curl` into `downloads/` (and
-   verified when a checksum is configured).
-2. **Toolchain**: tools are built once with the host compiler and installed into
-   `TOOLCHAIN_DIR`. They are put first on `PATH` for all other builds. `pkgconf`
-   is used (with `--static`) so that static dependency chains resolve correctly,
-   and automake supplies current `config.sub`/`config.guess` so 2000s-era
-   packages recognise Apple Silicon.
-3. **Libraries**: every library is built **once per architecture**
-   (`clang -arch x86_64` / `-arch arm64`) as a static archive into
-   `deps/<arch>`. Cross-compilation is used for the non-native architecture, so
-   no Rosetta is required.
-4. **SoX**: configured (after `autoreconf`, because the 14.4.2 release predates
-   arm64) against `deps/<arch>`, built per architecture, then `make dist` copies
-   each arch into `dist/<arch>/<prefix>` and merges them with `lipo` into
+1. Download: the Makefile fetches each archive with `curl` into `downloads/`
+   and verifies it when you configured a checksum.
+2. Toolchain: the build compiles the tools once with the host compiler and
+   installs them into `TOOLCHAIN_DIR`. It puts them first on `PATH` for all
+   other builds. It uses `pkgconf` with `--static` so static dependency chains
+   resolve correctly, and automake supplies current `config.sub`/`config.guess`
+   so 2000s-era packages recognise Apple Silicon.
+3. Libraries: the build compiles every library once per architecture
+   (`clang -arch x86_64` / `-arch arm64`) as a static archive into `deps/<arch>`.
+   It cross-compiles the non-native architecture, so it needs no Rosetta.
+4. SoX: the build runs `autoreconf` first (the 14.4.2 release predates arm64),
+   configures against `deps/<arch>`, builds per architecture, then `make dist`
+   copies each arch into `dist/<arch>/<prefix>` and merges them with `lipo` into
    `dist/universal/<prefix>`.
 
-Rebuilds are driven by **stamp files** named `<package>-<version>.stamp`.
-Changing a version creates a new stamp name and therefore triggers a rebuild
-automatically. Dependents (e.g. SoX after a library rebuild) are rebuilt because
-their stamps become older than their dependencies' stamps.
+Stamp files named `<package>-<version>.stamp` drive rebuilds. When you change a
+version, the stamp name changes and the build rebuilds that package. It also
+rebuilds dependents (for example ImageMagick after a library rebuild) because
+their stamps are older than their dependencies' stamps.
 
 ### Libraries and formats included
 
@@ -141,16 +140,16 @@ their stamps become older than their dependencies' stamps.
 | Playback/recording                               | CoreAudio (system frameworks)                                                  |
 
 Not available because SoX itself does not support them: AAC/MP4, ffmpeg-based
-formats. **Licensing:** this build includes GPL code (libmad, libid3tag, SoX's
-GPL parts), so the resulting binary is distributed under the **GPL**.
+formats. Licensing: this build includes GPL code (libmad, libid3tag, SoX's
+GPL parts), so the build distributes the resulting binary under the GPL.
 
 ---
 
 ## 4. Configuration
 
 Every variable can be set on the command line (`make VAR=value`), in the
-environment, or in an optional **`config.mk`** next to the Makefile (read
-automatically):
+environment, or in an optional `config.mk` next to the Makefile. The Makefile
+reads `config.mk` automatically:
 
 ```make
 # config.mk example
@@ -195,9 +194,9 @@ hooks `<PKG>_CONFIGURE`, `_PRE`, `_BUILD`, `_INSTALL`, `_POST`. `<PKG>` is the
 upper-cased package name with `-` replaced by `_` (`OPENCORE_AMR_VERSION`). Run
 `make versions` to list the current versions.
 
-The toolchain is **not relocatable** after being built (autoconf/automake record
-absolute paths). If you change `TOOLCHAIN_DIR`, the tools are rebuilt in the new
-location. Avoid spaces in all paths.
+The toolchain is not relocatable after you build it (autoconf/automake record
+absolute paths). If you change `TOOLCHAIN_DIR`, the build rebuilds the tools
+in the new location. Avoid spaces in all paths.
 
 ---
 
@@ -235,8 +234,8 @@ and `sox`.
 make package    # runs 'make dist' first, then pkgbuild
 ```
 
-One flat `.pkg` is created per architecture that was built, plus one for
-`universal` when more than one was built. They are written to `packages/` in the
+The build writes one flat `.pkg` per architecture you built, plus one for
+`universal` when you built more than one. It writes them to `packages/` in the
 project root:
 
 ```
@@ -251,9 +250,9 @@ payload, installed relative to `/`, so with the default prefix it installs
 `/usr/local/bin/sox`, `/usr/local/lib/libsox.a`, and so on. The package
 identifier defaults to `<username>.sox` (your user name in lower case, e.g.
 `alice.sox`, override with `PKG_IDENTIFIER`) and the version is the SoX version
-(`SOX_VERSION`). They are built with `pkgbuild` (part of macOS) and are
-**unsigned**, sign them yourself with `productsign` if you distribute them.
-You can inspect one with `pkgutil --payload-files packages/<file>.pkg`.
+(`SOX_VERSION`). `pkgbuild` (part of macOS) builds them unsigned, so sign them
+yourself with `productsign` if you distribute them. Inspect one with
+`pkgutil --payload-files packages/<file>.pkg`.
 
 ### Updating a dependency
 
@@ -262,11 +261,11 @@ make flac FLAC_VERSION=1.5.0     # or set FLAC_VERSION in config.mk
 make                             # relink everything that depends on it, rebuild SoX, refresh dist/
 ```
 
-A new version number gives a new stamp, so the package and everything that
-depends on it rebuild automatically. To rebuild the _same_ version, use
+A new version number gives a new stamp, so the build rebuilds the package and
+everything that depends on it. To rebuild the _same_ version, use
 `make rebuild-flac` and then `make`. Updating a toolchain tool works the same
-way (`make pkgconf PKGCONF_VERSION=...`). Library builds do not automatically
-rebuild when a tool changes. Run `make rebuild-<name>` for those you want
+way (`make pkgconf PKGCONF_VERSION=...`). Library builds do not rebuild
+when a tool changes. Run `make rebuild-<name>` for those you want
 refreshed.
 
 If a new version has a different download URL layout, also set `<PKG>_URL`.
@@ -275,8 +274,7 @@ If a new version has a different download URL layout, also set `<PKG>_URL`.
 
 ## 6. Tracking dependencies: `DEPENDENCIES.txt`
 
-`DEPENDENCIES.txt` is the single source of truth for build order, and the
-Makefile **reads it**:
+`DEPENDENCIES.txt` defines the build order, and the Makefile reads it:
 
 ```
 <package>: <space-separated direct dependencies>
@@ -297,52 +295,53 @@ are comments. Use `make graph` to print what the Makefile understood.
 
 ## 7. Notes and troubleshooting
 
-- **Configure results:** SoX auto-detects its libraries. If `make verify`
-  reports a missing format, read `build/<arch>/sox/config.log` to see why the
-  library check failed.
-- **Build failures:** logs go to the terminal. To investigate, run
-  `make <pkg>-<arch> JOBS=1` and inspect `build/<arch>/<pkg>/config.log`. Fix by
-  passing `<PKG>_CFG`, or edit hooks in `config.mk`, then `make rebuild-<pkg>`.
-- **Old compilers/SDKs:** if your clang does not know one of the `-Wno-error=`
-  options in `LEGACY_WARN`, remove it via `config.mk`.
-- **libmagic database location:** a `sed` edit applied automatically to the
-  libmagic sources (`LIBMAGIC_PRE`) sets the compiled-in _default_ database path
+- If `make verify` reports a missing format, SoX missed a library during
+  auto-detection. Read `build/<arch>/sox/config.log` to see why the library
+  check failed.
+- When a build fails, logs go to the terminal. To investigate, run
+  `make <pkg>-<arch> JOBS=1` and inspect `build/<arch>/<pkg>/config.log`. Fix
+  it by passing `<PKG>_CFG`, or edit hooks in `config.mk`, then run
+  `make rebuild-<pkg>`.
+- If your clang does not know one of the `-Wno-error=` options in `LEGACY_WARN`,
+  remove it in `config.mk`.
+- A `sed` edit in `LIBMAGIC_PRE` sets the compiled-in default database path
   to `$(DIST_PREFIX)/share/sox/magic` (default `/usr/local/share/sox/magic`,
   libmagic appends `.mgc`). `make dist` copies the `magic.mgc` built here to
   exactly that place inside every dist tree
   (`dist/<arch>/usr/local/share/sox/magic.mgc`), so installing a tree or a
-  `.pkg` puts the database where `sox` looks for it. The system copy is never
-  read or modified. The `MAGIC` environment variable still overrides the path at
-  run time. **The path is baked in when libmagic is built**, so after changing
-  `DIST_PREFIX` or `DIST_MAGIC_DIR` run `make rebuild-libmagic` and then `make`.
-- **`file` and `magic.mgc`:** the system `file` is never used. `file` is always
-  built into the toolchain (same version as libmagic, `LIBMAGIC_VERSION`),
-  because cross-building libmagic needs a host `file` of that exact version to
-  compile the database. libmagic itself (library plus its own `file` program) is
-  built for every architecture, and its `magic.mgc` is compiled unmodified, so
-  the database format always matches the library.
-- **How the path is changed:** `LIBMAGIC_PRE` runs `sed` on the `MAGIC = ...`
-  line of `src/Makefile.am` and `src/Makefile.in` and fails the build if the
-  line cannot be rewritten (checked with file 5.41, 5.45 and 5.48).
-  If a future release changes that line, adjust `LIBMAGIC_PRE` in `config.mk`.
-- **Mirrors:** if a download fails (SourceForge is occasionally unavailable),
-  fetch the archive manually into `downloads/` under its original file name.
-  Existing archives are not downloaded again.
-- **Checksums:** SHA-256 values are shipped. Change `<PKG>_SHA256` for the
-  versions you use if you want verified downloads.
-- **LAME 4.0 and mpg123:** since 4.0, LAME uses the external `libmpg123` for MP3
-  decoding instead of its bundled mpglib, so `mpg123` is built first (only the
-  decoder library, no players) and `-lmpg123` is added to SoX's link libraries.
-  The build prints a warning if `libmp3lame.a` ended up without mpg123 support.
-  SoX itself decodes MP3 with libmad and only uses LAME for encoding.
-  libsndfile's own MP3 support stays disabled (`--disable-mpeg`).
-- **`sox --version` prints `SoX v` without a number:** this is a known bug of
+  `.pkg` puts the database where `sox` looks for it. It never reads or modifies
+  the system copy. The `MAGIC` environment variable still overrides the path at
+  run time. The build bakes the path in when it builds libmagic, so after
+  changing `DIST_PREFIX` or `DIST_MAGIC_DIR` run `make rebuild-libmagic` and
+  then `make`.
+- The build never uses the system `file`. It always builds `file` into the
+  toolchain (same version as libmagic, `LIBMAGIC_VERSION`), because
+  cross-building libmagic needs a host `file` of that exact version to compile
+  the database. It builds libmagic itself (library plus its own `file` program)
+  for every architecture, and it compiles its `magic.mgc` unmodified, so the
+  database format always matches the library.
+- `LIBMAGIC_PRE` runs `sed` on the `MAGIC = ...` line of `src/Makefile.am` and
+  `src/Makefile.in` and fails the build if it cannot rewrite the line (checked
+  with file 5.41, 5.45 and 5.48). If a future release changes that line, adjust
+  `LIBMAGIC_PRE` in `config.mk`.
+- If a download fails (SourceForge is occasionally unavailable), fetch the
+  archive manually into `downloads/` under its original file name. The build
+  does not download existing archives again.
+- SHA-256 values are shipped. Change `<PKG>_SHA256` for the versions you use if
+  you want verified downloads.
+- Since 4.0, LAME uses the external `libmpg123` for MP3 decoding instead of its
+  bundled mpglib, so the build compiles `mpg123` first (only the decoder library,
+  no players) and adds `-lmpg123` to SoX's link libraries. It prints a warning
+  if `libmp3lame.a` ended up without mpg123 support. SoX itself decodes MP3 with
+  libmad and only uses LAME for encoding. It leaves libsndfile's own MP3 support
+  disabled (`--disable-mpeg`).
+- `sox --version` prints `SoX v` without a number because of a known bug in
   SoX 14.4.2 with optimising clang (SourceForge SoX patch #104, sox_ng issue
-  #159). `sox_version()` and `sox_version_info()` are declared `LSX_RETURN_PURE`
+  #159). `sox_version()` and `sox_version_info()` carry `LSX_RETURN_PURE`
   (`__attribute__((pure))`) in `src/sox.h`, although they fill function-local
-  static buffers on first use. The compiler may therefore drop the call and just
-  use the still-empty buffer's address, giving an empty version string (or
-  `(null)` with LTO). It does not happen with gcc at `-O2`, which is why it
+  static buffers on first use. The compiler can therefore drop the call and
+  just use the still-empty buffer's address, giving an empty version string (or
+  `(null)` with LTO). It does not happen with gcc at `-O2`, which is why it 
   shows up on macOS. `SOX_FIX_VERSION` (run first by `SOX_PRE`) uses `sed` to
   remove `LSX_RETURN_PURE` from exactly those two declarations in `src/sox.h`,
   and fails the build if the attribute is still present afterwards. The edit was
@@ -350,8 +349,8 @@ are comments. Use `make graph` to print what the Makefile understood.
   `-O2 -flto` the unpatched build prints `SoX v` / `SoX v(null)` and the fixed
   one prints `SoX v14.4.2`. To build without it, override `SOX_PRE` in
   `config.mk` (keep the `autoreconf` and `LIBS` parts of the default).
-- **Plugins:** formats and effects are linked in statically. Dynamic loading of
-  plugins (libltdl) is disabled.
+- The build links formats and effects in statically. It disables dynamic loading
+  of plugins (libltdl).
 
 ---
 
@@ -408,7 +407,7 @@ for your use.
 `make licenses` (also run by `make` and required by `make package`) reads the
 original source archives in `downloads/` and copies every root-level `COPYING*`,
 `LICENSE*`/`LICENCE*`, `COPYRIGHT*`, `NOTICE*`, `LGPL*` and `GPL*` file (plus
-any `<PKG>_LICENSE_FILES`, e.g. zlib's `README`, which contains its licence)
+any `<PKG>_LICENSE_FILES`, for example zlib's `README`, which holds its licence)
 into each `dist` tree:
 
 ```
